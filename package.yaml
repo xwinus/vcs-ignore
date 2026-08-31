@@ -1,23 +1,22 @@
 name: vcs-ignore
-version: 0.0.3.0
-homepage: https://github.com/vaclavsvejcar/vcs-ignore
+version: 0.1.0.0
+homepage: https://github.com/xwinus/vcs-ignore
 license: BSD-3-Clause
 license-file: LICENSE
-github: vaclavsvejcar/vcs-ignore
+github: xwinus/vcs-ignore
 author: Vaclav Svejcar
 maintainer: vaclav.svejcar@gmail.com
-copyright: Copyright (c) 2020-2022 Vaclav Svejcar
+copyright: Copyright (c) 2020-2026 Vaclav Svejcar
 category: Development
 
-synopsis: Library for handling files ignored by VCS systems.
+synopsis: Query Git ignore rules and traverse visible repository entries.
 description: >
-  vcs-ignore is small Haskell library used to find, check and process files
-  ignored by selected VCS.
+  vcs-ignore provides lazy Git ignore queries and a pruning, early-stopping
+  repository traversal built on one shared rule engine.
 
 
 extra-source-files:
   - README.md
-  - CHANGELOG.md
   - test-data/fake-git-repo/.gitignore
   - test-data/fake-git-repo/a/*
   - test-data/fake-git-repo/a/.gitignore
@@ -27,13 +26,15 @@ extra-source-files:
   - test-data/list-files/dir1/*
   - test-data/list-files/dir1/dir2/*
 
+extra-doc-files:
+  - CHANGELOG.md
+
 dependencies:
-  - base >= 4.7 && < 5
-  - containers
-  - directory
-  - exceptions
-  - filepath
-  - text
+  - base >= 4.20 && < 4.23
+  - containers >= 0.6 && < 0.8
+  - directory >= 1.3.8 && < 1.4
+  - filepath >= 1.4.2 && < 1.6
+  - text >= 2.0 && < 2.2
 
 ghc-options:
   - -optP-Wno-nonportable-include-path
@@ -47,11 +48,18 @@ ghc-options:
   - -Werror=incomplete-patterns
 
 library:
+  exposed-modules:
+    - Data.VCS.Ignore
+    - Data.VCS.Ignore.Git
+    - Data.VCS.Ignore.Types
+  other-modules:
+    - Data.VCS.Ignore.Git.Internal.Pattern
+    - Data.VCS.Ignore.Git.Internal.Repository
+    - Data.VCS.Ignore.Git.Internal.Traversal
   generated-other-modules: Paths_vcs_ignore
   source-dirs: src
   dependencies:
-    - Glob
-    - text
+    - Glob >= 0.10.2 && < 0.11
 
 executables:
   ignore:
@@ -62,22 +70,24 @@ executables:
       - -rtsopts
       - -with-rtsopts=-N
     dependencies:
-      - optparse-applicative
+      - optparse-applicative >= 0.18 && < 0.19
       - vcs-ignore
 
 tests:
   spec:
     main: Spec.hs
-    source-dirs: test
+    source-dirs:
+      - src
+      - test
     ghc-options:
       - -threaded
       - -rtsopts
       - -with-rtsopts=-N
     dependencies:
-      - bytestring
+      - Glob >= 0.10.2 && < 0.11
       - hspec
+      - process
       - temporary
-      - vcs-ignore
     build-tools: hspec-discover
   doctest:
     main: Main.hs
@@ -86,11 +96,9 @@ tests:
       - doctest
 
 benchmarks:
-  lazy-vs-eager:
+  repository-traversal:
     main: Main.hs
     source-dirs: benchmark
-    ghc-options:
-      - -O2
     dependencies:
       - criterion
       - temporary

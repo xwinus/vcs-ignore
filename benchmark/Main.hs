@@ -1,5 +1,3 @@
-{-# LANGUAGE TypeApplications #-}
-
 module Main (main) where
 
 import Control.Monad (forM_)
@@ -8,14 +6,17 @@ import Criterion.Main (
     bgroup,
     defaultMain,
     envWithCleanup,
+    nfIO,
     whnfIO,
  )
 import Data.VCS.Ignore (
-    Git,
-    PathKind (DirectoryPathKind),
-    Repo (scanRepo),
-    isIgnoredPath,
-    openGitIgnoreMatcher,
+    PathKind (Directory),
+    WalkAction (Continue, Stop),
+    entryPath,
+    foldRepo,
+    isIgnored,
+    listRepo,
+    openGitRepository,
  )
 import System.Directory (
     createDirectoryIfMissing,
@@ -33,16 +34,27 @@ main =
     defaultMain
         [ envWithCleanup setupEnvironment cleanupEnvironment $ \root ->
             bgroup
-                "ignored-large-tree"
-                [ bench "eager-scan" $ whnfIO (scanRepo @Git root)
-                , bench
-                    "lazy-open-and-prune"
-                    ( whnfIO $ do
-                        matcher <- openGitIgnoreMatcher root
-                        isIgnoredPath matcher DirectoryPathKind "ignored"
-                    )
+                "repository"
+                [ bench "open" $ whnfIO (openGitRepository root)
+                , bench "cold-directory-query" . whnfIO $ do
+                    repo <- openGitRepository root
+                    isIgnored repo Directory "ignored"
+                , bench "fold-visible-tree" . whnfIO $ do
+                    repo <- openGitRepository root
+                    foldRepo repo (0 :: Int) countEntry
+                , bench "list-visible-tree" . nfIO $ do
+                    repo <- openGitRepository root
+                    fmap entryPath <$> listRepo repo
+                , bench "stop-after-ten" . whnfIO $ do
+                    repo <- openGitRepository root
+                    foldRepo repo (0 :: Int) stopAfterTen
                 ]
         ]
+  where
+    countEntry count _ = pure (count + 1, Continue)
+    stopAfterTen count _
+        | count >= 10 = pure (count, Stop)
+        | otherwise = pure (count + 1, Continue)
 
 setupEnvironment :: IO FilePath
 setupEnvironment = do
@@ -51,14 +63,16 @@ setupEnvironment = do
     let root = sandbox </> "repo"
     createDirectoryIfMissing True $ root </> ".git" </> "info"
     writeFile (root </> ".gitignore") "ignored/\n"
-    forM_ [1 .. directoryCount] $ \directoryIndex -> do
-        let directory = root </> "ignored" </> show directoryIndex
-        createDirectoryIfMissing True directory
-        writeFile (directory </> ".gitignore") "*.generated\n"
-        forM_ [1 .. filesPerDirectory] $ \fileIndex ->
-            writeFile (directory </> show fileIndex <> ".generated") "benchmark"
+    createTree $ root </> "ignored"
+    createTree $ root </> "visible"
     pure root
   where
+    createTree base =
+        forM_ [1 .. directoryCount] $ \directoryIndex -> do
+            let directory = base </> show directoryIndex
+            createDirectoryIfMissing True directory
+            forM_ [1 .. filesPerDirectory] $ \fileIndex ->
+                writeFile (directory </> show fileIndex <> ".generated") "benchmark"
     directoryCount = 20 :: Int
     filesPerDirectory = 200 :: Int
 

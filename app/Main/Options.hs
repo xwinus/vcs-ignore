@@ -3,7 +3,7 @@
 -- |
 -- Module      : Main.Options
 -- Description : Options definitions for "optparse-applicative"
--- Copyright   : (c) 2020-2022 Vaclav Svejcar
+-- Copyright   : (c) 2020-2026 Vaclav Svejcar
 -- License     : BSD-3-Clause
 -- Maintainer  : vaclav.svejcar@gmail.com
 -- Stability   : experimental
