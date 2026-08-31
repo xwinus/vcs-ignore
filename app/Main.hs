@@ -1,11 +1,10 @@
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ViewPatterns #-}
 
 -- |
 -- Module      : Main
 -- Description : Simple application using the /vcs-ignore/ library
--- Copyright   : (c) 2020-2022 Vaclav Svejcar
+-- Copyright   : (c) 2020-2026 Vaclav Svejcar
 -- License     : BSD-3-Clause
 -- Maintainer  : vaclav.svejcar@gmail.com
 -- Stability   : experimental
@@ -14,55 +13,68 @@
 -- This simple application demonstrates the use of "vcs-ignore" library. It allows
 -- to check whether path given as argument is ignored within existing /GIT/ repo.
 module Main (
-    main
+    main,
 ) where
 
 import Control.Monad (when)
-import Data.VCS.Ignore.Core (findRepo)
-import Data.VCS.Ignore.Repo (Repo (..))
-import Data.VCS.Ignore.Repo.Git (Git)
+import Data.VCS.Ignore (
+    GitRepository,
+    PathKind (..),
+    findGitRepository,
+    isIgnored,
+    repositoryRoot,
+ )
 import Main.Options (
-    Mode (..)
-    , Options (..)
-    , optionsParser
+    Mode (..),
+    Options (..),
+    optionsParser,
  )
 import Options.Applicative (execParser)
 import System.Directory (
-    canonicalizePath
-    , getCurrentDirectory
+    doesDirectoryExist,
+    doesFileExist,
+    getCurrentDirectory,
+    makeAbsolute,
+    pathIsSymbolicLink,
  )
 import System.Exit (
-    exitFailure
-    , exitSuccess
+    exitFailure,
+    exitSuccess,
  )
-import System.FilePath (makeRelative)
+import System.FilePath (makeRelative, normalise)
+import System.IO.Error (
+    isDoesNotExistError,
+    tryIOError,
+ )
 
 main :: IO ()
 main = do
     options <- execParser optionsParser
-    repo <- findRepoOrFail @Git options
+    repo <- findRepoOrFail options
     executeMode repo options
 
-findRepoOrFail :: (Repo r, Show r) => Options -> IO r
+findRepoOrFail :: Options -> IO GitRepository
 findRepoOrFail Options{..} = do
     repoDir <- getCurrentDirectory
-    maybeRepo <- findRepo repoDir
+    maybeRepo <- findGitRepository repoDir
     case maybeRepo of
         Just repo -> do
-            putStrLn $ "Found repository at: " <> repoRoot repo
-            when oDebug (putStrLn $ "Repository details: " <> show repo)
+            putStrLn $ "Found repository at: " <> repositoryRoot repo
+            when oDebug (putStrLn $ "Repository root: " <> repositoryRoot repo)
             pure repo
         Nothing -> do
             putStrLn $ "No repository found for path: " <> repoDir
             exitFailure
 
-executeMode :: Repo r => r -> Options -> IO ()
+executeMode :: GitRepository -> Options -> IO ()
 executeMode repo (oMode -> Path path) = checkPath repo path
 
-checkPath :: Repo r => r -> FilePath -> IO ()
+checkPath :: GitRepository -> FilePath -> IO ()
 checkPath repo path = do
-    relative <- makeRelative (repoRoot repo) <$> canonicalizePath path
-    excluded <- isIgnored repo relative
+    absolute <- normalise <$> makeAbsolute path
+    kind <- classifyPath absolute
+    let relative = makeRelative (repositoryRoot repo) absolute
+    excluded <- isIgnored repo kind relative
     if excluded then reportIgnored else reportNotIgnored
   where
     reportIgnored = do
@@ -71,3 +83,16 @@ checkPath repo path = do
     reportNotIgnored = do
         putStrLn $ "Path '" <> path <> "' IS NOT ignored"
         exitFailure
+
+classifyPath :: FilePath -> IO PathKind
+classifyPath path = do
+    symbolicLinkResult <- tryIOError $ pathIsSymbolicLink path
+    case symbolicLinkResult of
+        Left error'
+            | isDoesNotExistError error' -> pure Other
+            | otherwise -> ioError error'
+        Right True -> pure SymbolicLink
+        Right False -> do
+            directory <- doesDirectoryExist path
+            regularFile <- doesFileExist path
+            pure $ if directory then Directory else if regularFile then RegularFile else Other

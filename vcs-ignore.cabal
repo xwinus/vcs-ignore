@@ -5,21 +5,20 @@ cabal-version: 2.2
 -- see: https://github.com/sol/hpack
 
 name:           vcs-ignore
-version:        0.0.3.0
-synopsis:       Library for handling files ignored by VCS systems.
-description:    vcs-ignore is small Haskell library used to find, check and process files ignored by selected VCS.
+version:        0.1.0.0
+synopsis:       Query Git ignore rules and traverse visible repository entries.
+description:    vcs-ignore provides lazy Git ignore queries and a pruning, early-stopping repository traversal built on one shared rule engine.
 category:       Development
-homepage:       https://github.com/vaclavsvejcar/vcs-ignore
-bug-reports:    https://github.com/vaclavsvejcar/vcs-ignore/issues
+homepage:       https://github.com/xwinus/vcs-ignore
+bug-reports:    https://github.com/xwinus/vcs-ignore/issues
 author:         Vaclav Svejcar
 maintainer:     vaclav.svejcar@gmail.com
-copyright:      Copyright (c) 2020-2022 Vaclav Svejcar
+copyright:      Copyright (c) 2020-2026 Vaclav Svejcar
 license:        BSD-3-Clause
 license-file:   LICENSE
 build-type:     Simple
 extra-source-files:
     README.md
-    CHANGELOG.md
     test-data/fake-git-repo/.gitignore
     test-data/fake-git-repo/a/test-a.txt
     test-data/fake-git-repo/a/test-a.xml
@@ -31,21 +30,22 @@ extra-source-files:
     test-data/list-files/dir1/b.txt
     test-data/list-files/dir1/dir2/c.txt
     test-data/list-files/dir1/dir2/d.xml
+extra-doc-files:
+    CHANGELOG.md
 
 source-repository head
   type: git
-  location: https://github.com/vaclavsvejcar/vcs-ignore
+  location: https://github.com/xwinus/vcs-ignore
 
 library
   exposed-modules:
       Data.VCS.Ignore
-      Data.VCS.Ignore.Core
-      Data.VCS.Ignore.FileSystem
-      Data.VCS.Ignore.Repo
-      Data.VCS.Ignore.Repo.Git
-      Data.VCS.Ignore.Repo.Git.Matcher
+      Data.VCS.Ignore.Git
       Data.VCS.Ignore.Types
   other-modules:
+      Data.VCS.Ignore.Git.Internal.Pattern
+      Data.VCS.Ignore.Git.Internal.Repository
+      Data.VCS.Ignore.Git.Internal.Traversal
       Paths_vcs_ignore
   autogen-modules:
       Paths_vcs_ignore
@@ -53,13 +53,12 @@ library
       src
   ghc-options: -optP-Wno-nonportable-include-path -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wpartial-fields -Wredundant-constraints -Werror=incomplete-patterns
   build-depends:
-      Glob
-    , base >=4.7 && <5
-    , containers
-    , directory
-    , exceptions
-    , filepath
-    , text
+      Glob >=0.10.2 && <0.11
+    , base >=4.20 && <4.23
+    , containers >=0.6 && <0.9
+    , directory >=1.3.8 && <1.4
+    , filepath >=1.4.2 && <1.6
+    , text >=2.0 && <2.2
   default-language: Haskell2010
 
 executable ignore
@@ -74,13 +73,12 @@ executable ignore
       app
   ghc-options: -optP-Wno-nonportable-include-path -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wpartial-fields -Wredundant-constraints -Werror=incomplete-patterns -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      base >=4.7 && <5
-    , containers
-    , directory
-    , exceptions
-    , filepath
-    , optparse-applicative
-    , text
+      base >=4.20 && <4.23
+    , containers >=0.6 && <0.9
+    , directory >=1.3.8 && <1.4
+    , filepath >=1.4.2 && <1.6
+    , optparse-applicative ==0.18.*
+    , text >=2.0 && <2.2
     , vcs-ignore
   default-language: Haskell2010
 
@@ -95,45 +93,50 @@ test-suite doctest
       doctest
   ghc-options: -optP-Wno-nonportable-include-path -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wpartial-fields -Wredundant-constraints -Werror=incomplete-patterns
   build-depends:
-      base >=4.7 && <5
-    , containers
-    , directory
+      base >=4.20 && <4.23
+    , containers >=0.6 && <0.9
+    , directory >=1.3.8 && <1.4
     , doctest
-    , exceptions
-    , filepath
-    , text
+    , filepath >=1.4.2 && <1.6
+    , text >=2.0 && <2.2
   default-language: Haskell2010
 
 test-suite spec
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
-      Data.VCS.Ignore.CoreSpec
-      Data.VCS.Ignore.FileSystemSpec
-      Data.VCS.Ignore.Repo.Git.MatcherSpec
-      Data.VCS.Ignore.Repo.GitSpec
+      Data.VCS.Ignore
+      Data.VCS.Ignore.Git
+      Data.VCS.Ignore.Git.Internal.Pattern
+      Data.VCS.Ignore.Git.Internal.Repository
+      Data.VCS.Ignore.Git.Internal.Traversal
+      Data.VCS.Ignore.Types
+      Data.VCS.Ignore.Git.CompatibilitySpec
+      Data.VCS.Ignore.Git.Internal.PatternSpec
+      Data.VCS.Ignore.Git.Internal.RepositorySpec
+      Data.VCS.Ignore.Git.Internal.TraversalSpec
       Paths_vcs_ignore
   autogen-modules:
       Paths_vcs_ignore
   hs-source-dirs:
+      src
       test
   ghc-options: -optP-Wno-nonportable-include-path -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wpartial-fields -Wredundant-constraints -Werror=incomplete-patterns -threaded -rtsopts -with-rtsopts=-N
   build-tool-depends:
       hspec-discover:hspec-discover
   build-depends:
-      base >=4.7 && <5
-    , bytestring
-    , containers
-    , directory
-    , exceptions
-    , filepath
+      Glob >=0.10.2 && <0.11
+    , base >=4.20 && <4.23
+    , containers >=0.6 && <0.9
+    , directory >=1.3.8 && <1.4
+    , filepath >=1.4.2 && <1.6
     , hspec
+    , process
     , temporary
-    , text
-    , vcs-ignore
+    , text >=2.0 && <2.2
   default-language: Haskell2010
 
-benchmark lazy-vs-eager
+benchmark repository-traversal
   type: exitcode-stdio-1.0
   main-is: Main.hs
   other-modules:
@@ -142,15 +145,14 @@ benchmark lazy-vs-eager
       Paths_vcs_ignore
   hs-source-dirs:
       benchmark
-  ghc-options: -optP-Wno-nonportable-include-path -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wpartial-fields -Wredundant-constraints -Werror=incomplete-patterns -O2
+  ghc-options: -optP-Wno-nonportable-include-path -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wpartial-fields -Wredundant-constraints -Werror=incomplete-patterns
   build-depends:
-      base >=4.7 && <5
-    , containers
+      base >=4.20 && <4.23
+    , containers >=0.6 && <0.9
     , criterion
-    , directory
-    , exceptions
-    , filepath
+    , directory >=1.3.8 && <1.4
+    , filepath >=1.4.2 && <1.6
     , temporary
-    , text
+    , text >=2.0 && <2.2
     , vcs-ignore
   default-language: Haskell2010
