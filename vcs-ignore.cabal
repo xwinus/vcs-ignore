@@ -55,7 +55,7 @@ library
   build-depends:
       Glob >=0.10.2 && <0.11
     , base >=4.20 && <4.23
-    , containers >=0.6 && <0.8
+    , containers >=0.6 && <0.9
     , directory >=1.3.8 && <1.4
     , filepath >=1.4.2 && <1.6
     , text >=2.0 && <2.2
@@ -74,7 +74,7 @@ executable ignore
   ghc-options: -optP-Wno-nonportable-include-path -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wpartial-fields -Wredundant-constraints -Werror=incomplete-patterns -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.20 && <4.23
-    , containers >=0.6 && <0.8
+    , containers >=0.6 && <0.9
     , directory >=1.3.8 && <1.4
     , filepath >=1.4.2 && <1.6
     , optparse-applicative ==0.18.*
@@ -94,7 +94,7 @@ test-suite doctest
   ghc-options: -optP-Wno-nonportable-include-path -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wpartial-fields -Wredundant-constraints -Werror=incomplete-patterns
   build-depends:
       base >=4.20 && <4.23
-    , containers >=0.6 && <0.8
+    , containers >=0.6 && <0.9
     , directory >=1.3.8 && <1.4
     , doctest
     , filepath >=1.4.2 && <1.6
@@ -127,7 +127,7 @@ test-suite spec
   build-depends:
       Glob >=0.10.2 && <0.11
     , base >=4.20 && <4.23
-    , containers >=0.6 && <0.8
+    , containers >=0.6 && <0.9
     , directory >=1.3.8 && <1.4
     , filepath >=1.4.2 && <1.6
     , hspec
@@ -148,7 +148,7 @@ benchmark repository-traversal
   ghc-options: -optP-Wno-nonportable-include-path -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wpartial-fields -Wredundant-constraints -Werror=incomplete-patterns
   build-depends:
       base >=4.20 && <4.23
-    , containers >=0.6 && <0.8
+    , containers >=0.6 && <0.9
     , criterion
     , directory >=1.3.8 && <1.4
     , filepath >=1.4.2 && <1.6
