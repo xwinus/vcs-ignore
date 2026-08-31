@@ -162,7 +162,7 @@ parsePatterns ::
     [Pattern]
 parsePatterns = fmap compilePattern . filter (not . excluded) . T.lines
   where
-    excluded = \line -> or $ fmap ($ T.stripStart line) [comment, T.null]
+    excluded = \line -> any ($ T.stripStart line) [comment, T.null]
     comment = \line -> "#" `T.isPrefixOf` line
 
 -- | Loads /Glob/ patterns from given text file. If the fille cannot be read for

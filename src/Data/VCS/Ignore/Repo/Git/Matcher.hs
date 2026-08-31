@@ -184,11 +184,12 @@ loadAncestorGroups ::
     GitIgnoreMatcher ->
     FilePath ->
     m [(FilePath, [Pattern])]
-loadAncestorGroups matcher relative = liftIO $
-    modifyMVar (matcherPatternCache matcher) $ \cache -> do
+loadAncestorGroups matcher relative =
+    liftIO (modifyMVar (matcherPatternCache matcher) updateCache)
+  where
+    updateCache cache = do
         (updatedCache, groups) <- go cache baseGroups (ancestorPrefixes relative)
         pure (updatedCache, groups)
-  where
     baseGroups = [("/", matcherBasePatterns matcher)]
     go cache groups [] = pure (cache, groups)
     go cache groups (prefix : prefixes)

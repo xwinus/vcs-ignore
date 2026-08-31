@@ -35,9 +35,12 @@ main =
             bgroup
                 "ignored-large-tree"
                 [ bench "eager-scan" $ whnfIO (scanRepo @Git root)
-                , bench "lazy-open-and-prune" $ whnfIO $ do
-                    matcher <- openGitIgnoreMatcher root
-                    isIgnoredPath matcher DirectoryPathKind "ignored"
+                , bench
+                    "lazy-open-and-prune"
+                    ( whnfIO $ do
+                        matcher <- openGitIgnoreMatcher root
+                        isIgnoredPath matcher DirectoryPathKind "ignored"
+                    )
                 ]
         ]
 
