@@ -1,6 +1,6 @@
 cabal-version: 2.2
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
+-- This file has been generated from package.yaml by hpack version 0.39.6.
 --
 -- see: https://github.com/sol/hpack
 
@@ -67,6 +67,8 @@ executable ignore
       Main.Options
       Main.Vendor
       Paths_vcs_ignore
+  autogen-modules:
+      Paths_vcs_ignore
   hs-source-dirs:
       app
   ghc-options: -optP-Wno-nonportable-include-path -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wpartial-fields -Wredundant-constraints -Werror=incomplete-patterns -threaded -rtsopts -with-rtsopts=-N
@@ -85,6 +87,8 @@ test-suite doctest
   type: exitcode-stdio-1.0
   main-is: Main.hs
   other-modules:
+      Paths_vcs_ignore
+  autogen-modules:
       Paths_vcs_ignore
   hs-source-dirs:
       doctest
@@ -106,6 +110,8 @@ test-suite spec
       Data.VCS.Ignore.CoreSpec
       Data.VCS.Ignore.FileSystemSpec
       Data.VCS.Ignore.Repo.GitSpec
+      Paths_vcs_ignore
+  autogen-modules:
       Paths_vcs_ignore
   hs-source-dirs:
       test
