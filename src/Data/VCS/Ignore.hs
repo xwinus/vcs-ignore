@@ -63,29 +63,45 @@
 -- @
 module Data.VCS.Ignore (
     -- Working with ignored files
-    findRepo
-    , listRepo
-    , walkRepo
+    findRepo,
+    listRepo,
+    walkRepo,
 
-      -- * Repo /type class/
-    , Repo (..)
-    , RepoError (..)
+    -- * Repo /type class/
+    Repo (..),
+    RepoError (..),
 
-      -- * /GIT/ implementation
-    , Git (..)
+    -- * /GIT/ implementation
+    Git (..),
+    GitIgnoreMatcher,
+    GitIgnoreMatcherError (..),
+    PathKind (..),
+    findRepoRoot,
+    openGitIgnoreMatcher,
+    gitIgnoreMatcherRoot,
+    isIgnoredPath,
 
-      -- * Common data types
-    , VCSIgnoreError (..)
+    -- * Common data types
+    VCSIgnoreError (..),
 ) where
 
 import Data.VCS.Ignore.Core (
-    findRepo
-    , listRepo
-    , walkRepo
+    findRepo,
+    listRepo,
+    walkRepo,
  )
 import Data.VCS.Ignore.Repo (
-    Repo (..)
-    , RepoError (..)
+    Repo (..),
+    RepoError (..),
  )
 import Data.VCS.Ignore.Repo.Git (Git (..))
+import Data.VCS.Ignore.Repo.Git.Matcher (
+    GitIgnoreMatcher,
+    GitIgnoreMatcherError (..),
+    PathKind (..),
+    findRepoRoot,
+    gitIgnoreMatcherRoot,
+    isIgnoredPath,
+    openGitIgnoreMatcher,
+ )
 import Data.VCS.Ignore.Types (VCSIgnoreError (..))

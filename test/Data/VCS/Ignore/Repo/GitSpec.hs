@@ -101,6 +101,21 @@ spec = do
             let err (InvalidRepo _ _) = True
             scanRepo' fn1 fn2 gitIgnorePatterns fn3 repo `shouldThrow` err
 
+    describe "evaluatePatternGroups" $ do
+        it "uses the last matching pattern in a group" $ do
+            let patterns = [("/", ["*.txt", "!keep.txt"])]
+            evaluatePatternGroups FilePathKind patterns "keep.txt" `shouldBe` False
+
+        it "allows a nested group to override an ancestor group" $ do
+            let patterns = [("/", ["*.txt"]), ("/nested/", ["!keep.txt"])]
+            evaluatePatternGroups FilePathKind patterns "nested/keep.txt" `shouldBe` False
+            evaluatePatternGroups FilePathKind patterns "other/keep.txt" `shouldBe` True
+
+        it "applies trailing-slash rules only to directories" $ do
+            let patterns = [("/", ["build/"])]
+            evaluatePatternGroups DirectoryPathKind patterns "build" `shouldBe` True
+            evaluatePatternGroups FilePathKind patterns "build" `shouldBe` False
+
     describe "isIgnored'" $ do
         it "checks whether given path is excluded" $ do
             absRepo <- makeAbsolute repo
@@ -129,5 +144,5 @@ spec = do
             isIgnored' git "/a/b/.hid" `shouldReturn` True
             isIgnored' git "/a/b/.hid/foo" `shouldReturn` True
 
-sortFst :: Ord a => [(a, b)] -> [(a, b)]
+sortFst :: (Ord a) => [(a, b)] -> [(a, b)]
 sortFst = L.sortOn fst

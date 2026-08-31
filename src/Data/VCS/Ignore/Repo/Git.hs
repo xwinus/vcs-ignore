@@ -16,70 +16,81 @@
 -- versioning system. Most of the public functions is exported only to make them
 -- visible for tests, end user of this library really shouldn't need to use them.
 module Data.VCS.Ignore.Repo.Git (
-    Git (..)
-    , Pattern (..)
-    , compilePattern
-    , matchesPattern
-    , parsePatterns
-    , loadPatterns
-    , findGitIgnores
-    , gitIgnorePatterns
-    , repoPatterns
-    , globalPatterns
-    , scanRepo'
-    , isIgnored'
-    , isGitRepo
+    Git (..),
+    PathKind (..),
+    Pattern (..),
+    compilePattern,
+    matchesPattern,
+    parsePatterns,
+    loadPatterns,
+    findGitIgnores,
+    gitIgnorePatterns,
+    repoPatterns,
+    globalPatterns,
+    scanRepo',
+    evaluatePatternGroups,
+    isIgnored',
+    isGitRepo,
 ) where
 
 import Control.Exception (
-    SomeException
-    , catch
+    SomeException,
+    catch,
  )
 import Control.Monad.Catch (
-    MonadThrow
-    , throwM
+    MonadThrow,
+    throwM,
  )
 import Control.Monad.IO.Class (
-    MonadIO
-    , liftIO
+    MonadIO,
+    liftIO,
  )
 import qualified Data.List as L
 import Data.Maybe (
-    fromMaybe
-    , maybeToList
+    fromMaybe,
+    maybeToList,
  )
 import Data.String (IsString (..))
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import Data.VCS.Ignore.FileSystem (
-    findPaths
-    , toPosixPath
+    findPaths,
+    toPosixPath,
  )
 import Data.VCS.Ignore.Repo (
-    Repo (..)
-    , RepoError (..)
+    Repo (..),
+    RepoError (..),
  )
 import System.Directory (
-    XdgDirectory (XdgConfig)
-    , canonicalizePath
-    , doesDirectoryExist
-    , getXdgDirectory
-    , makeAbsolute
+    XdgDirectory (XdgConfig),
+    canonicalizePath,
+    doesDirectoryExist,
+    getXdgDirectory,
+    makeAbsolute,
  )
 import System.FilePath (
-    makeRelative
-    , (</>)
+    makeRelative,
+    takeFileName,
+    (</>),
  )
 import qualified System.FilePath.Glob as G
 
 -- | Data type representing scanned instance of /GIT/ repository.
 data Git = Git
     { gitRepoRoot :: FilePath
-    -- ^ absolute path to the repository
+    -- ^  absolute path to the repository
     , gitPatterns :: [(FilePath, [Pattern])]
     -- ^ ignored patterns
     }
+    deriving (Eq, Show)
+
+-- | Identifies how a candidate path should be matched. Git ignore patterns
+-- ending in a slash only match directories, so callers must supply this
+-- information without requiring the matcher to inspect or follow the path.
+data PathKind
+    = FilePathKind
+    | DirectoryPathKind
     deriving (Eq, Show)
 
 instance Repo Git where
@@ -120,9 +131,10 @@ compilePattern raw =
             }
   where
     r1 p
-        | any (`T.isPrefixOf` p) ["/", "*"] = p
-        | length (filter (not . T.null) . T.splitOn "/" $ p) == 1 = "**/" <> p
-        | otherwise = "/" <> p
+        | "/" `T.isPrefixOf` p = p
+        | "**/" `T.isPrefixOf` p = p
+        | "/" `T.isInfixOf` T.dropWhileEnd (== '/') p = "/" <> p
+        | otherwise = "**/" <> p
     r2 p
         | "/" `T.isSuffixOf` p = [p <> "**"]
         | otherwise = [p, p <> "/**"]
@@ -142,7 +154,7 @@ matchesPattern ptn path = any (`G.match` path) (pPatterns ptn)
 -- lines are skipped.
 --
 -- >>> parsePatterns "*.xml\n.DS_Store"
--- [Pattern {pPatterns = [compile "*.xml",compile "*.xml/*"], pRaw = "*.xml", pIsNegated = False},Pattern {pPatterns = [compile "**/.DS_Store",compile "**/.DS_Store/*"], pRaw = ".DS_Store", pIsNegated = False}]
+-- [Pattern {pPatterns = [compile "**/*.xml",compile "**/*.xml/*"], pRaw = "*.xml", pIsNegated = False},Pattern {pPatterns = [compile "**/.DS_Store",compile "**/.DS_Store/*"], pRaw = ".DS_Store", pIsNegated = False}]
 parsePatterns ::
     -- | text to parse
     Text ->
@@ -157,7 +169,7 @@ parsePatterns = fmap compilePattern . filter (not . excluded) . T.lines
 -- any reason, empty list is returned. See 'parsePatterns' for more details
 -- about parsing.
 loadPatterns ::
-    MonadIO m =>
+    (MonadIO m) =>
     -- | path to text file to parse
     FilePath ->
     -- | parsed /Glob/ patterns
@@ -168,20 +180,20 @@ loadPatterns path = parsePatterns <$> liftIO content
 
 -- | Recursively finds all @.gitignore@ files within the given directory path.
 findGitIgnores ::
-    MonadIO m =>
+    (MonadIO m) =>
     -- | path to the directory to search in
     FilePath ->
     -- | paths of found @.gitignore@ files
     m [FilePath]
 findGitIgnores repoDir = findPaths repoDir isGitIgnore
   where
-    isGitIgnore path = pure $ ".gitignore" `L.isSuffixOf` path
+    isGitIgnore path = pure $ takeFileName path == ".gitignore"
 
 -- | Recursively finds all @.gitignore@ files within the given directory path
 -- and parses them into /Glob/ patterns. See 'loadPatterns' and 'findGitIgnores'
 -- for more details.
 gitIgnorePatterns ::
-    MonadIO m =>
+    (MonadIO m) =>
     -- | path to the directory to search @.gitignore@ files in
     FilePath ->
     -- | list of @.gitignore@ paths and parsed /Glob/ patterns
@@ -193,18 +205,18 @@ gitIgnorePatterns repoDir = do
     path p = stripSuffix' ".gitignore" $ stripPrefix' repoDir p
 
 -- | Loads /GIT/ repository specific ignore patterns, present in
--- @REPO_ROOT\/info\/exclude@ file.
+-- @REPO_ROOT\/.git\/info\/exclude@ file.
 repoPatterns ::
-    MonadIO m =>
+    (MonadIO m) =>
     -- | path to the /GIT/ repository root
     FilePath ->
     -- | parsed /Glob/ patterns
     m [Pattern]
-repoPatterns repoDir = loadPatterns $ repoDir </> "info" </> "exclude"
+repoPatterns repoDir = loadPatterns $ repoDir </> ".git" </> "info" </> "exclude"
 
 -- | Loads global /GIT/  ignore patterns, present in
 -- @XDG_CONFIG_GOME\/git\/ignore@ file.
-globalPatterns :: MonadIO m => m [Pattern]
+globalPatterns :: (MonadIO m) => m [Pattern]
 globalPatterns =
     (liftIO . getXdgDirectory XdgConfig $ ("git" </> "ignore")) >>= loadPatterns
 
@@ -243,9 +255,40 @@ scanRepo' globalPatternsFn repoPatternsFn gitIgnoresFn isGitRepoFn repoDir = do
             root = concat . maybeToList $ snd <$> L.find predicate xs
          in (root, woRoot)
 
+-- | Purely evaluates ordered pattern groups for a repository-relative path.
+-- Groups and their patterns must be ordered from lowest to highest precedence;
+-- the last matching pattern determines the result.
+evaluatePatternGroups ::
+    PathKind ->
+    [(FilePath, [Pattern])] ->
+    FilePath ->
+    Bool
+evaluatePatternGroups kind groups path =
+    fromMaybe False $ L.foldl' applyPattern Nothing applicablePatterns
+  where
+    candidate = addPrefix "/" . toPosix $ path
+    applicablePatterns = do
+        (prefix, patterns) <- groups
+        if groupApplies prefix candidate
+            then fmap (prefix,) patterns
+            else []
+    applyPattern result (prefix, pattern')
+        | matchesPattern pattern' (pathForGroup prefix pattern') =
+            Just . not $ pIsNegated pattern'
+        | otherwise = result
+    pathForGroup prefix pattern' =
+        addPrefix "/"
+            . stripPrefix' (normalizePrefix prefix)
+            $ candidateForPattern pattern'
+    candidateForPattern pattern'
+        | kind == DirectoryPathKind && isDirectoryPattern pattern' =
+            addTrailingSlash candidate
+        | otherwise = stripTrailingSlash candidate
+    isDirectoryPattern = T.isSuffixOf "/" . T.dropWhile (== '!') . pRaw
+
 -- | Internal version of 'isIgnored' function.
 isIgnored' ::
-    MonadIO m =>
+    (MonadIO m) =>
     -- | scanned /GIT/ repository
     Git ->
     -- | path to check if ignored
@@ -268,7 +311,7 @@ isIgnored' git@(Git _ patterns) path = do
 
 -- | Checks whether given directory path is valid /GIT/ repository.
 isGitRepo ::
-    MonadIO m =>
+    (MonadIO m) =>
     -- | path to the directory to check
     FilePath ->
     -- | @True@ if the given directory is valid repository
@@ -290,7 +333,40 @@ stripSuffix' :: String -> String -> String
 stripSuffix' suffix str =
     maybe str T.unpack (T.stripSuffix (T.pack suffix) (T.pack str))
 
-normalize :: MonadIO m => FilePath -> FilePath -> m FilePath
+toPosix :: FilePath -> FilePath
+toPosix = fmap replaceSeparator
+  where
+    replaceSeparator '\\' = '/'
+    replaceSeparator char = char
+
+normalizePrefix :: FilePath -> FilePath
+normalizePrefix prefix
+    | normalized == "/" = normalized
+    | otherwise = addTrailingSlash normalized
+  where
+    normalized = addPrefix "/" . stripTrailingSlash . toPosix $ prefix
+
+groupApplies :: FilePath -> FilePath -> Bool
+groupApplies prefix path =
+    normalized == "/"
+        || ( normalized `L.isPrefixOf` candidateDirectory
+                && normalized /= candidateDirectory
+           )
+  where
+    normalized = normalizePrefix prefix
+    candidateDirectory = addTrailingSlash path
+
+addTrailingSlash :: FilePath -> FilePath
+addTrailingSlash path
+    | "/" `L.isSuffixOf` path = path
+    | otherwise = path <> "/"
+
+stripTrailingSlash :: FilePath -> FilePath
+stripTrailingSlash path
+    | path /= "/" = stripSuffix' "/" path
+    | otherwise = path
+
+normalize :: (MonadIO m) => FilePath -> FilePath -> m FilePath
 normalize repoDir path = do
     canonicalized <- liftIO . canonicalizePath $ repoDir </> stripPrefix' "/" path
     isDir <- liftIO $ doesDirectoryExist canonicalized

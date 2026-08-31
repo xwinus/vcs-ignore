@@ -74,7 +74,9 @@ tests:
       - -rtsopts
       - -with-rtsopts=-N
     dependencies:
+      - bytestring
       - hspec
+      - temporary
       - vcs-ignore
     build-tools: hspec-discover
   doctest:
@@ -82,3 +84,14 @@ tests:
     source-dirs: doctest
     dependencies:
       - doctest
+
+benchmarks:
+  lazy-vs-eager:
+    main: Main.hs
+    source-dirs: benchmark
+    ghc-options:
+      - -O2
+    dependencies:
+      - criterion
+      - temporary
+      - vcs-ignore
