@@ -1,84 +1,100 @@
-![CI](https://github.com/vaclavsvejcar/vcs-ignore/workflows/CI/badge.svg)
-[![Hackage version](http://img.shields.io/hackage/v/vcs-ignore.svg)](https://hackage.haskell.org/package/vcs-ignore)
+# vcs-ignore
+
+[![CI](https://github.com/xwinus/vcs-ignore/actions/workflows/ci.yml/badge.svg)](https://github.com/xwinus/vcs-ignore/actions/workflows/ci.yml)
+[![Hackage version](https://img.shields.io/hackage/v/vcs-ignore.svg)](https://hackage.haskell.org/package/vcs-ignore)
 [![Stackage version](https://www.stackage.org/package/vcs-ignore/badge/lts?label=Stackage)](https://www.stackage.org/package/vcs-ignore)
 
-# vcs-ignore
-`vcs-ignore` is small Haskell library used to find, check and process files ignored by selected _VCS_.
+`vcs-ignore` is a small Haskell library for finding repositories, checking
+whether paths are ignored, and processing paths according to version control
+system (VCS) ignore rules. Git is currently supported.
 
-## 1. Table of Contents
-<!-- TOC -->
+## Contents
 
-- [1. Table of Contents](#1-table-of-contents)
-- [2. Use as Library](#2-use-as-library)
-    - [2.1. Listing all files/directories ignored by VCS](#21-listing-all-filesdirectories-ignored-by-vcs)
-    - [2.2. Walking files/directories ignored by VCS](#22-walking-filesdirectories-ignored-by-vcs)
-    - [2.3. Checking if path is ignored by VCS](#23-checking-if-path-is-ignored-by-vcs)
-- [3. Use as Executable](#3-use-as-executable)
-    - [3.1. Checking if path is ignored by VCS](#31-checking-if-path-is-ignored-by-vcs)
+- [Using the library](#using-the-library)
+  - [Listing non-ignored paths](#listing-non-ignored-paths)
+  - [Processing non-ignored paths](#processing-non-ignored-paths)
+  - [Checking whether a path is ignored](#checking-whether-a-path-is-ignored)
+- [Using the executable](#using-the-executable)
+  - [Checking whether a path is ignored](#checking-whether-a-path-is-ignored-1)
 
-<!-- /TOC -->
+## Using the library
 
+The examples below use `scanRepo` to scan a Git repository at its root. Paths
+returned by `listRepo` and passed to callbacks by `walkRepo` are relative to that
+root.
 
-## 2. Use as Library
-Because this library is really simple to use, following example should be enough to understand how to use it for your project.
+### Listing non-ignored paths
 
-### 2.1. Listing all files/directories ignored by VCS
+`listRepo` recursively lists files and directories that are not ignored by the
+repository's ignore rules.
+
 ```haskell
 {-# LANGUAGE TypeApplications #-}
 
 module Data.VCS.Test where
 
-import Data.VCS.Ignore ( Git, Repo(..), listRepo )
+import Data.VCS.Ignore (Git, Repo (..), listRepo)
 
-example :: IO [FilePath]
-example = do
-  repo <- scanRepo @Git "path/to/repo"
-  listRepo repo
+listNonIgnoredPaths :: IO [FilePath]
+listNonIgnoredPaths = do
+    repo <- scanRepo @Git "/path/to/repo"
+    listRepo repo
 ```
 
-### 2.2. Walking files/directories ignored by VCS
+### Processing non-ignored paths
+
+`walkRepo` runs an action for every non-ignored path. This example keeps only
+files and returns their paths relative to the repository root.
+
 ```haskell
 {-# LANGUAGE TypeApplications #-}
 
 module Data.VCS.Test where
 
-import Data.Maybe       ( catMaybes )
-import System.Directory ( doesFileExist )
-import Data.VCS.Ignore  ( Git, Repo(..), walkRepo )
+import Data.Maybe (catMaybes)
+import Data.VCS.Ignore (Git, Repo (..), walkRepo)
+import System.Directory (doesFileExist)
+import System.FilePath ((</>))
 
 onlyFiles :: IO [FilePath]
 onlyFiles = do
-  repo <- scanRepo @Git "path/to/repo"
-  catMaybes <$> walkRepo repo walkFn
- where
-  walkFn path = do
-    file <- doesFileExist path
-    pure (if file then Just path else Nothing)
-
+    repo <- scanRepo @Git "/path/to/repo"
+    catMaybes <$> walkRepo repo (keepFile repo)
+  where
+    keepFile repo path = do
+        isFile <- doesFileExist (repoRoot repo </> path)
+        pure (if isFile then Just path else Nothing)
 ```
 
-### 2.3. Checking if path is ignored by VCS
+### Checking whether a path is ignored
+
+`isIgnored` expects a path relative to the repository root. The path does not
+need to exist.
+
 ```haskell
 {-# LANGUAGE TypeApplications #-}
 
 module Data.VCS.Test where
 
-import Data.VCS.Ignore ( Git, Repo(..) )
+import Data.VCS.Ignore (Git, Repo (..))
 
 checkIgnored :: IO Bool
 checkIgnored = do
-  repo <- scanRepo @Git "path/to/repo"
-  isIgnored repo "/some/path/.DS_Store"
+    repo <- scanRepo @Git "/path/to/repo"
+    isIgnored repo "some/path/.DS_Store"
 ```
 
-## 3. Use as Executable
-While `vcs-ignore` is mainly intended to be used as a library, it also comes with small executable called `ignore` that can be used standalone to verify whether given path is ignored or not.
+## Using the executable
 
-```
+The package also includes an executable named `ignore`. Run it from anywhere
+inside a Git repository to check a path against that repository's ignore rules.
+
+```console
 $ ignore --help
-vcs-ignore, v0.0.2.0 :: https://github.com/vaclavsvejcar/vcs-ignore
+vcs-ignore, v0.0.3.0 :: https://github.com/vaclavsvejcar/vcs-ignore
 
 Usage: ignore (-p|--path PATH) [--debug] [-v|--version] [--numeric-version]
+
   library for handling files ignored by VCS systems
 
 Available options:
@@ -89,16 +105,24 @@ Available options:
   -h,--help                Show this help text
 ```
 
-### 3.1. Checking if path is ignored by VCS
-To verify if path is ignored by _VCS_, just call the `ignore` executable with `-p` parameter inside the _VCS_ repository like this:
+### Checking whether a path is ignored
 
-```
-$ ignore -p .stack-work/some-file
+Pass the path to `--path` (or `-p`). The executable exits with status `0` when
+the path is ignored and status `1` when it is not ignored. It also exits with
+status `1` if no Git repository can be found.
+
+```console
+$ ignore -p foo/.DS_Store
 Found repository at: /path/to/repo
-Path '.stack-work/some-file' IS NOT ignored
+Path 'foo/.DS_Store' IS ignored
+
+$ echo $?
+0
+
+$ ignore -p README.md
+Found repository at: /path/to/repo
+Path 'README.md' IS NOT ignored
 
 $ echo $?
 1
 ```
-
-As you can see, `ignore` executable prints result in human readable form as well as it sets the exit code to `1` if the file is __not__ ignored.
