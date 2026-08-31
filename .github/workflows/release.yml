@@ -1,122 +1,124 @@
-name: Binary Release
+name: Release
 
 on:
-  # Trigger the workflow on the new 'v*' tag created
   push:
     tags:
       - "v*"
+
+permissions:
+  contents: read
 
 defaults:
   run:
     shell: bash
 
 jobs:
-  create_release:
-    name: Create Github Release
+  source:
+    name: Source distribution
     runs-on: ubuntu-latest
     steps:
-      - name: Check out code
-        uses: actions/checkout@v2
+      - name: Check out repository
+        uses: actions/checkout@v7
 
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1.1.1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Set up Haskell
+        uses: haskell-actions/setup@v2
         with:
-          tag_name: ${{ github.ref }}
-          release_name: Release ${{ github.ref }}
-          draft: true
-          prerelease: false
+          ghc-version: "9.10.3"
+          cabal-version: latest
 
-      - name: Output Release URL File
-        run: echo "${{ steps.create_release.outputs.upload_url }}" > release_url.txt
-      - name: Save Release URL File for publish
-        uses: actions/upload-artifact@v1
+      - name: Verify tag and package version
+        run: |
+          package_version="$(awk '$1 == "version:" { print $2; exit }' package.yaml)"
+          test "$GITHUB_REF_NAME" = "v${package_version}"
+
+      - name: Check package metadata
+        run: cabal check
+
+      - name: Build source distribution
+        run: cabal sdist --output-dir release
+
+      - name: Upload source distribution
+        uses: actions/upload-artifact@v7
         with:
-          name: release_url
-          path: release_url.txt
+          name: release-source
+          path: release/*.tar.gz
+          compression-level: 0
+          if-no-files-found: error
 
-  build_artifact:
-    needs: [create_release]
-    name: ${{ matrix.os }}/GHC ${{ matrix.ghc }}/${{ github.ref }}
+  binary:
+    name: Binary / ${{ matrix.os }} / GHC 9.10.3
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
-        os: [ubuntu-latest, macOS-latest, windows-latest]
-        ghc:
-          # - "8.8.3"
-          - "8.10.4"
-        cabal: ["3.2"]
-        exclude:
-          - os: windows-latest
-            ghc: 8.8.3
-
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
     steps:
-      - name: Check out code
-        uses: actions/checkout@v2
+      - name: Check out repository
+        uses: actions/checkout@v7
 
-      - name: Set tag name
-        uses: little-core-labs/get-git-tag@v3.0.1
-        id: tag
+      - name: Set up Haskell
+        uses: haskell-actions/setup@v2
         with:
-          tagRegex: "v(.*)"
-          tagRegexGroup: 1
+          ghc-version: "9.10.3"
+          cabal-version: latest
 
-      - uses: haskell/actions/setup@v1
-        id: setup-haskell-cabal
-        name: Setup Haskell
-        with:
-          ghc-version: ${{ matrix.ghc }}
-          cabal-version: ${{ matrix.cabal }}
-
-      - name: Freeze
+      - name: Build executable
         run: |
-          cabal freeze
+          cabal install exe:ignore \
+            --install-method=copy \
+            --overwrite-policy=always \
+            --installdir=dist
 
-      - name: Cache ~/.cabal/store
-        uses: actions/cache@v1
-        with:
-          path: ${{ steps.setup-haskell-cabal.outputs.cabal-store }}
-          key: ${{ runner.os }}-${{ matrix.ghc }}-${{ hashFiles('cabal.project.freeze') }}
-
-      - name: Build binary
+      - name: Package executable
         run: |
-          mkdir dist
-          cabal install exe:ignore --install-method=copy --overwrite-policy=always --installdir=dist
+          executable=ignore
+          if [ "$RUNNER_OS" = Windows ]; then
+            executable=ignore.exe
+          fi
+          archive="ignore-${GITHUB_REF_NAME#v}-${RUNNER_OS}-${RUNNER_ARCH}.tar.gz"
+          mkdir release
+          tar -czf "release/${archive}" -C dist "$executable"
 
-      - if: matrix.os == 'windows-latest'
-        name: Set extension to .exe on Windows
-        run: echo "EXT=.exe" >> $GITHUB_ENV
-
-      - name: Set binary path name
-        run: echo "BINARY_PATH=./dist/ignore${{ env.EXT }}" >> $GITHUB_ENV
-
-      - name: Strip binary
-        run: strip ${{ env.BINARY_PATH }}
-
-      # - name: Compress binary
-      #   uses: svenstaro/upx-action@v2
-      #   with:
-      #     file: dist/ignore
-
-      - name: Load Release URL File from release job
-        uses: actions/download-artifact@v1
+      - name: Upload executable archive
+        uses: actions/upload-artifact@v7
         with:
-          name: release_url
+          name: binary-${{ runner.os }}-${{ runner.arch }}
+          path: release/*.tar.gz
+          compression-level: 0
+          if-no-files-found: error
 
-      - name: Get Release File Name & Upload URL
-        id: get_release_info
-        run: |
-          echo "::set-output name=upload_url::$(cat release_url/release_url.txt)"
+  release:
+    name: Draft GitHub release
+    needs:
+      - source
+      - binary
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download release artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: release
+          merge-multiple: true
 
-      - name: Upload Release Asset
-        id: upload-release-asset
-        uses: actions/upload-release-asset@v1.0.1
+      - name: Create checksums
+        run: sha256sum release/* > release/SHA256SUMS
+
+      - name: Create or update draft release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.get_release_info.outputs.upload_url }}
-          asset_path: ${{ env.BINARY_PATH }}
-          asset_name: ignore-${{ steps.tag.outputs.tag }}-${{ runner.os }}-ghc-${{ matrix.ghc }}${{ env.EXT }}
-          asset_content_type: application/octet-stream
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            test "$(gh release view "$GITHUB_REF_NAME" --json isDraft --jq .isDraft)" = true
+            gh release upload "$GITHUB_REF_NAME" release/* --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" release/* \
+              --draft \
+              --generate-notes \
+              --title "Release ${GITHUB_REF_NAME}" \
+              --verify-tag
+          fi

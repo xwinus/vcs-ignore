@@ -32,6 +32,7 @@ extra-source-files:
     test-data/list-files/dir1/dir2/d.xml
 extra-doc-files:
     CHANGELOG.md
+    RELEASING.md
 
 source-repository head
   type: git
