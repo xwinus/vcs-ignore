@@ -1,99 +1,92 @@
 name: CI
 
-# Trigger the workflow on push or pull request, but only for the master branch
 on:
   pull_request:
   push:
     branches: [master]
 
+permissions:
+  contents: read
+
 jobs:
   cabal:
-    name: ${{ matrix.os }} / ghc ${{ matrix.ghc }}
+    name: Cabal / ${{ matrix.os }} / GHC ${{ matrix.ghc }}
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
-        os: [ubuntu-latest, macOS-latest, windows-latest]
-        cabal: ["3.4"]
-        ghc:
-          - "8.6.5"
-          - "8.8.4"
-          - "8.10.4"
-        exclude:
-          - os: macOS-latest
-            ghc: 8.8.4
-          - os: macOS-latest
-            ghc: 8.6.5
+        include:
+          - os: ubuntu-latest
+            ghc: "9.10.3"
+          - os: ubuntu-latest
+            ghc: "9.12.4"
+          - os: ubuntu-latest
+            ghc: "9.14.1"
+          - os: macos-latest
+            ghc: "9.10.3"
           - os: windows-latest
-            ghc: 8.8.4
-          - os: windows-latest
-            ghc: 8.6.5
+            ghc: "9.10.3"
 
     steps:
-      - uses: actions/checkout@v2
-        if: github.event.action == 'opened' || github.event.action == 'synchronize' || github.event.ref == 'refs/heads/master'
+      - name: Check out repository
+        uses: actions/checkout@v7
 
-      - uses: haskell/actions/setup@v1
+      - name: Set up Haskell
         id: setup-haskell-cabal
-        name: Setup Haskell
+        uses: haskell-actions/setup@v2
         with:
           ghc-version: ${{ matrix.ghc }}
-          cabal-version: ${{ matrix.cabal }}
+          cabal-version: latest
 
-      - name: Freeze
-        run: |
-          cabal freeze
-
-      - uses: actions/cache@v2.1.4
-        name: Cache ~/.cabal/store
+      - name: Cache Cabal store
+        uses: actions/cache@v6
         with:
           path: ${{ steps.setup-haskell-cabal.outputs.cabal-store }}
-          key: ${{ runner.os }}-${{ matrix.ghc }}-${{ hashFiles('cabal.project.freeze') }}
+          key: ${{ runner.os }}-cabal-${{ matrix.ghc }}-${{ hashFiles('vcs-ignore.cabal') }}
+          restore-keys: |
+            ${{ runner.os }}-cabal-${{ matrix.ghc }}-
 
       - name: Install dependencies
-        run: |
-          cabal configure --enable-tests --enable-benchmarks --test-show-details=direct
-          cabal build all --only-dependencies
+        run: cabal build all --enable-tests --only-dependencies
 
       - name: Build
-        run: |
-          cabal build all
+        run: cabal build all --enable-tests
 
       - name: Test
-        run: |
-          cabal test spec
+        run: cabal test spec --enable-tests --test-show-details=direct
 
   stack:
-    name: stack / ghc ${{ matrix.ghc }}
+    name: Stack / LTS 24.57
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        stack: ["2.5.1"]
-        ghc: ["8.8.4"]
 
     steps:
-      - uses: actions/checkout@v2
-        if: github.event.action == 'opened' || github.event.action == 'synchronize' || github.event.ref == 'refs/heads/master'
+      - name: Check out repository
+        uses: actions/checkout@v7
 
-      - uses: haskell/actions/setup@v1
-        name: Setup Haskell
+      - name: Set up Stack
+        id: setup-haskell-stack
+        uses: haskell-actions/setup@v2
         with:
-          ghc-version: ${{ matrix.ghc }}
-          cabal-version: ${{ matrix.cabal }}
+          enable-stack: true
+          stack-version: latest
+          stack-no-global: true
 
-      - uses: actions/cache@v2.1.4
-        name: Cache ~/.stack
+      - name: Cache Stack
+        uses: actions/cache@v6
         with:
-          path: ~/.stack
-          key: ${{ runner.os }}-${{ matrix.ghc }}-stack
+          path: ${{ steps.setup-haskell-stack.outputs.stack-root }}
+          key: ${{ runner.os }}-stack-${{ hashFiles('stack.yaml.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-stack-
+
+      - name: Set up GHC
+        run: stack setup
 
       - name: Install dependencies
-        run: |
-          stack build --system-ghc --test --bench --no-run-tests --no-run-benchmarks --only-dependencies
+        run: stack build --test --no-run-tests --only-dependencies
 
       - name: Build
-        run: |
-          stack build --system-ghc --test --bench --no-run-tests --no-run-benchmarks
+        run: stack build --test --no-run-tests
 
       - name: Test
-        run: |
-          stack test --system-ghc
+        run: stack test
