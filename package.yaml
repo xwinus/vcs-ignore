@@ -90,12 +90,6 @@ tests:
       - process
       - temporary
     build-tools: hspec-discover
-  doctest:
-    main: Main.hs
-    source-dirs: doctest
-    dependencies:
-      - doctest
-
 benchmarks:
   repository-traversal:
     main: Main.hs

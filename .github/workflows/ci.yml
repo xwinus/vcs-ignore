@@ -55,6 +55,14 @@ jobs:
       - name: Test
         run: cabal test spec --enable-tests --test-show-details=direct
 
+      - name: Doctest
+        if: matrix.os == 'ubuntu-latest' && matrix.ghc == '9.10.3'
+        run: |
+          cabal install doctest --ignore-project --overwrite-policy=always
+          cabal repl lib:vcs-ignore \
+            --with-compiler="$(cabal -v0 path --installdir)/doctest" \
+            --repl-options='-w -Wdefault'
+
   stack:
     name: Stack / LTS 24.57
     runs-on: ubuntu-latest
