@@ -11,6 +11,7 @@ system (VCS) ignore rules. Git is currently supported.
 ## Contents
 
 - [Using the library](#using-the-library)
+  - [Pruning a traversal lazily](#pruning-a-traversal-lazily)
   - [Listing non-ignored paths](#listing-non-ignored-paths)
   - [Processing non-ignored paths](#processing-non-ignored-paths)
   - [Checking whether a path is ignored](#checking-whether-a-path-is-ignored)
@@ -19,9 +20,45 @@ system (VCS) ignore rules. Git is currently supported.
 
 ## Using the library
 
-The examples below use `scanRepo` to scan a Git repository at its root. Paths
-returned by `listRepo` and passed to callbacks by `walkRepo` are relative to that
-root.
+The eager examples below use `scanRepo` to scan a Git repository at its root.
+Paths returned by `listRepo` and passed to callbacks by `walkRepo` are relative
+to that root.
+
+### Pruning a traversal lazily
+
+`GitIgnoreMatcher` supports walkers that need to decide whether a directory is
+ignored before visiting its children. Repository discovery does not scan the
+working tree. Opening a matcher loads global excludes and `.git/info/exclude`;
+each `.gitignore` is then loaded at most once, only when a query needs it.
+
+```haskell
+import Data.VCS.Ignore
+
+shouldPrune :: FilePath -> IO Bool
+shouldPrune start = do
+    maybeRoot <- findRepoRoot start
+    case maybeRoot of
+        Nothing -> pure False
+        Just root -> do
+            matcher <- openGitIgnoreMatcher root
+            isIgnoredPath matcher DirectoryPathKind "dist"
+```
+
+The queried path may be relative to the repository or absolute. Its parent is
+canonicalized to verify repository membership, but its final component is
+matched lexically. Callers therefore pass `FilePathKind` for files and symlinks,
+or `DirectoryPathKind` for real directories, without requiring the matcher to
+follow the leaf. A path outside the repository throws `PathOutsideRepository`.
+
+Missing, unreadable, and symlinked `.gitignore` files are treated as empty and
+cached. Git metadata (`.git` and its descendants) is always reported as ignored
+for traversal purposes.
+
+The existing eager `scanRepo`, `findRepo`, and `isIgnored` API remains
+available. Pattern discovery now also follows Git more closely: a slashless
+pattern such as `*.log` applies at every depth (use `/*.log` to anchor it to the
+pattern group's root), repository excludes are read from `.git/info/exclude`,
+and only files named exactly `.gitignore` are discovered by eager scans.
 
 ### Listing non-ignored paths
 

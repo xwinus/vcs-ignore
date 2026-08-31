@@ -11,15 +11,15 @@
 --
 -- Options definitions for "optparse-applicative".
 module Main.Options (
-    Options (..)
-    , Mode (..)
-    , optionsParser
+    Options (..),
+    Mode (..),
+    optionsParser,
 ) where
 
 import Main.Vendor (
-    buildVersion
-    , productDesc
-    , productInfo
+    buildVersion,
+    productDesc,
+    productInfo,
  )
 import Options.Applicative
 
@@ -39,15 +39,13 @@ optionsParser =
         (fullDesc <> progDesc productDesc <> header productInfo)
   where
     options =
-        Options
-            <$> ( Path
-                    <$> strOption
-                        ( long "path"
-                            <> short 'p'
-                            <> metavar "PATH"
-                            <> help
-                                "path to check"
-                        )
+        Options . Path
+            <$> strOption
+                ( long "path"
+                    <> short 'p'
+                    <> metavar "PATH"
+                    <> help
+                        "path to check"
                 )
             <*> switch (long "debug" <> help "produce more verbose output")
 
