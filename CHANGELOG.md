@@ -1,6 +1,6 @@
 # Changelog for vcs-ignore
 
-## v0.1.0.0 (in development)
+## v0.1.0.0 (2026-08-31)
 
 - Replace the eager repository scan and separate lazy matcher with one opaque,
   lazy `GitRepository` session
