@@ -1,9 +1,9 @@
 name: vcs-ignore
 version: 0.0.3.0
-homepage: https://github.com/vaclavsvejcar/vcs-ignore
+homepage: https://github.com/xwinus/vcs-ignore
 license: BSD-3-Clause
 license-file: LICENSE
-github: vaclavsvejcar/vcs-ignore
+github: xwinus/vcs-ignore
 author: Vaclav Svejcar
 maintainer: vaclav.svejcar@gmail.com
 copyright: Copyright (c) 2020-2022 Vaclav Svejcar

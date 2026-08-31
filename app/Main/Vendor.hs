@@ -39,4 +39,4 @@ productName = "vcs-ignore"
 
 -- | Product source code repository.
 webRepo :: IsString a => a
-webRepo = "https://github.com/vaclavsvejcar/vcs-ignore"
+webRepo = "https://github.com/xwinus/vcs-ignore"

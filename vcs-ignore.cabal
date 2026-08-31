@@ -9,8 +9,8 @@ version:        0.0.3.0
 synopsis:       Library for handling files ignored by VCS systems.
 description:    vcs-ignore is small Haskell library used to find, check and process files ignored by selected VCS.
 category:       Development
-homepage:       https://github.com/vaclavsvejcar/vcs-ignore
-bug-reports:    https://github.com/vaclavsvejcar/vcs-ignore/issues
+homepage:       https://github.com/xwinus/vcs-ignore
+bug-reports:    https://github.com/xwinus/vcs-ignore/issues
 author:         Vaclav Svejcar
 maintainer:     vaclav.svejcar@gmail.com
 copyright:      Copyright (c) 2020-2022 Vaclav Svejcar
@@ -34,7 +34,7 @@ extra-source-files:
 
 source-repository head
   type: git
-  location: https://github.com/vaclavsvejcar/vcs-ignore
+  location: https://github.com/xwinus/vcs-ignore
 
 library
   exposed-modules:
